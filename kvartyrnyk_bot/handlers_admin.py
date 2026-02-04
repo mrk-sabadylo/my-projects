@@ -1,5 +1,4 @@
 from aiogram import Router, F
-from aiogram.filters import Command
 from aiogram.types import Message, FSInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -15,14 +14,15 @@ admin_router = Router()
 # ================= FSM =================
 
 class AdminStates(StatesGroup):
-    waiting_for_slots = State()
-    waiting_for_user_remove = State()
-    waiting_for_blacklist_add = State()
-    waiting_for_blacklist_remove = State()
-
     waiting_event_place = State()
     waiting_event_time = State()
     waiting_event_price = State()
+
+    waiting_for_blacklist_add = State()
+    waiting_for_blacklist_remove = State()
+
+    waiting_for_slots = State()
+    waiting_for_user_remove = State()
 
 # ================= HELPERS =================
 
@@ -35,7 +35,7 @@ async def stop_state(message: Message, state: FSMContext):
 
 # ================= GLOBAL BUTTONS =================
 
-@admin_router.message(F.text == "Cancel")
+@admin_router.message(F.text.lower() == "cancel")
 async def cancel_action(message: Message, state: FSMContext):
     await stop_state(message, state)
 
@@ -46,118 +46,167 @@ async def back_to_user_mode(message: Message, state: FSMContext):
 
 # ================= ADMIN PANEL =================
 
-@admin_router.message(Command("admin"))
+@admin_router.message(F.text.startswith("/admin"))
 async def cmd_admin(message: Message):
     if not is_admin(message.from_user.id):
         await message.answer(MESSAGES["admin_only"])
         return
-    registered_count = db.get_current_slots()
+
+    event = db.get_event_info()
+    registered = db.get_current_slots()
     max_slots = db.get_max_slots()
-    free_slots = db.get_free_slots()
-    blacklist_count = len(db.get_blacklist())
+    free = db.get_free_slots()
+    bl_count = len(db.get_blacklist())
 
-    text = (
-        f"🔐 Адмін-панель\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"📊 Статистика:\n"
-        f"├ Зареєстровано: {registered_count}\n"
-        f"├ Максимум місць: {max_slots}\n"
-        f"├ Вільних місць: {free_slots}\n"
-        f"└ У blacklist: {blacklist_count}\n\n"
-        f"📋 Команди:\n\n"
-
-        f"🎫 Місця:\n"
-        f"/set_slots — змінити максимальну кількість місць\n"
-        f"/slots_info — переглянути завантаженість\n\n"
-
-        f"👥 Реєстрації:\n"
-        f"/list_users — список всіх гостей\n"
-        f"/remove_user — видалити гостя по ID\n"
-        f"/clear_all — очистити всі реєстрації\n\n"
-
-        f"⛔️ Blacklist:\n"
-        f"/blacklist_add — заборонити користувачу реєстрацію\n"
-        f"/blacklist_remove — дозволити користувачу реєстрацію\n"
-        f"/blacklist_list — список заблокованих\n\n"
-
-        f"📊 Інше:\n"
-        f"/stats — повна статистика\n"
-        f"/export — експорт гостей у файл\n\n"
+    event_block = (
+        "ℹ️ Дані події ще не задані\n" if not event["place"] else
+        f"📍 {event['place']}\n🕒 {event['time']}\n💰 {event['price']}\n"
     )
 
-    await message.answer(text, reply_markup=admin_keyboard)
+    text = (
+        "🔐 <b>АДМІН-ПАНЕЛЬ</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
 
-# ================= EVENT INFO =================
+        f"🎤 <b>Подія:</b>\n{event_block}\n"
 
-@admin_router.message(Command("set_event"))
-async def set_event(message: Message, state: FSMContext):
-    if not is_admin(message.from_user.id):
+        f"📊 <b>Статистика:</b>\n"
+        f"👥 {registered}/{max_slots} | Вільно: {free}\n"
+        f"⛔ Blacklist: {bl_count}\n\n"
+
+        "📋 <b>Команди:</b>\n\n"
+
+        "🎤 Подія:\n"
+        "/set_event — задати подію\n"
+        "/clear_event — очистити подію\n\n"
+
+        "🎫 Місця:\n"
+        "/set_slots — змінити ліміт місць\n"
+        "/slots_info — завантаженість\n\n"
+
+        "👥 Реєстрації:\n"
+        "/list_users — список гостей\n"
+        "/remove_user — видалити гостя\n"
+        "/clear_all — стерти всі реєстрації\n\n"
+
+        "⛔ Blacklist:\n"
+        "/blacklist_add — заблокувати\n"
+        "/blacklist_remove — розблокувати\n"
+        "/blacklist_list — список blacklist\n\n"
+
+        "📦 Інше:\n"
+        "/export — експорт\n"
+    )
+
+    await message.answer(text, reply_markup=admin_keyboard, parse_mode="HTML")
+
+# ================= SLOTS =================
+
+@admin_router.message(F.text.startswith("/set_slots"))
+async def set_slots(message: Message, state: FSMContext):
+    await message.answer("Введіть новий ліміт місць:")
+    await state.set_state(AdminStates.waiting_for_slots)
+
+@admin_router.message(AdminStates.waiting_for_slots)
+async def process_slots(message: Message, state: FSMContext):
+    if not message.text.isdigit():
+        await message.answer("Введіть число.")
         return
-    await message.answer("📍 Введіть місце:")
-    await state.set_state(AdminStates.waiting_event_place)
-
-@admin_router.message(AdminStates.waiting_event_place)
-async def set_event_place(message: Message, state: FSMContext):
-    await state.update_data(place=message.text)
-    await message.answer("🕒 Введіть дату і час:")
-    await state.set_state(AdminStates.waiting_event_time)
-
-@admin_router.message(AdminStates.waiting_event_time)
-async def set_event_time(message: Message, state: FSMContext):
-    await state.update_data(time=message.text)
-    await message.answer("💰 Введіть ціну:")
-    await state.set_state(AdminStates.waiting_event_price)
-
-@admin_router.message(AdminStates.waiting_event_price)
-async def set_event_price(message: Message, state: FSMContext):
-    data = await state.get_data()
-    db.set_event_info(data["place"], data["time"], message.text)
-    await message.answer("✅ Подію збережено.")
+    db._load_data()["max_slots"] = int(message.text)
+    data = db._load_data()
+    data["max_slots"] = int(message.text)
+    db._save_data(data)
     await state.clear()
+    await message.answer("✅ Ліміт оновлено.")
 
-@admin_router.message(Command("clear_event"))
-async def clear_event(message: Message):
-    if is_admin(message.from_user.id):
-        db.clear_event_info()
-        await message.answer("🗑 Дані події очищено.")
+@admin_router.message(F.text.startswith("/slots_info"))
+async def slots_info(message: Message):
+    await message.answer(
+        f"👥 Зареєстровано: {db.get_current_slots()}\n"
+        f"🎫 Ліміт: {db.get_max_slots()}\n"
+        f"🟢 Вільно: {db.get_free_slots()}"
+    )
+
+# ================= USERS =================
+
+@admin_router.message(F.text.startswith("/list_users"))
+async def list_users(message: Message):
+    users = db.get_all_registered()
+    if not users:
+        await message.answer("Список пустий.")
+        return
+
+    text = "\n".join(f"{u['name']} | ID {uid} | @{u.get('username')}" for uid, u in users.items())
+    await message.answer(text)
+
+@admin_router.message(F.text.startswith("/remove_user"))
+async def remove_user(message: Message, state: FSMContext):
+    await message.answer("Введіть ID користувача для видалення:")
+    await state.set_state(AdminStates.waiting_for_user_remove)
+
+@admin_router.message(AdminStates.waiting_for_user_remove)
+async def process_remove_user(message: Message, state: FSMContext):
+    if not message.text.isdigit():
+        await message.answer("Потрібен числовий ID.")
+        return
+    db.unregister_user(int(message.text))
+    await state.clear()
+    await message.answer("🗑 Користувача видалено.")
+
+@admin_router.message(F.text.startswith("/clear_all"))
+async def clear_all(message: Message):
+    db.clear_all_registrations()
+    await message.answer("🗑 Усі реєстрації стерто.")
+
+# ================= BLACKLIST =================
+# (без змін, працює і для ID і для @username)
+@admin_router.message(F.text.startswith("/blacklist_add"))
+async def bl_add(message: Message, state: FSMContext):
+    await message.answer("Введіть ID або @username:")
+    await state.set_state(AdminStates.waiting_for_blacklist_add)
+
+@admin_router.message(AdminStates.waiting_for_blacklist_add)
+async def bl_add_process(message: Message, state: FSMContext):
+    value = message.text.replace("@", "").strip()
+    try: value = int(value)
+    except: value = value.lower()
+    db.add_to_blacklist(value)
+    await state.clear()
+    await message.answer("⛔ Додано в blacklist.")
+
+@admin_router.message(F.text.startswith("/blacklist_remove"))
+async def bl_remove(message: Message, state: FSMContext):
+    await message.answer("Введіть ID або @username:")
+    await state.set_state(AdminStates.waiting_for_blacklist_remove)
+
+@admin_router.message(AdminStates.waiting_for_blacklist_remove)
+async def bl_remove_process(message: Message, state: FSMContext):
+    value = message.text.replace("@", "").strip()
+    try: value = int(value)
+    except: value = value.lower()
+    db.remove_from_blacklist(value)
+    await state.clear()
+    await message.answer("✅ Видалено з blacklist.")
+
+@admin_router.message(F.text.startswith("/blacklist_list"))
+async def bl_list(message: Message):
+    bl = db.get_blacklist()
+    await message.answer("Blacklist:\n" + "\n".join(map(str, bl)) if bl else "Blacklist порожній.")
 
 # ================= EXPORT =================
 
-@admin_router.message(Command("export"))
+@admin_router.message(F.text.startswith("/export"))
 async def export_data(message: Message):
-    if not is_admin(message.from_user.id):
-        return
-
     users = db.get_all_registered()
     event = db.get_event_info()
-    blacklist = db.get_blacklist()
 
-    text = f"ЕКСПОРТ: {EVENT_NAME}\n"
-    text += f"Дата: {datetime.now()}\n"
-    text += "=" * 40 + "\n\n"
-
-    text += "ІНФОРМАЦІЯ ПРО ПОДІЮ\n"
-    text += f"Місце: {event['place']}\n"
-    text += f"Час: {event['time']}\n"
-    text += f"Ціна: {event['price']}\n\n"
-
-    text += f"ЗАРЕЄСТРОВАНІ ({len(users)})\n"
-    text += "-" * 40 + "\n"
-    for uid, info in users.items():
-        text += f"{info['name']} | ID {uid} | @{info.get('username')}\n"
-
-    text += "\nBLACKLIST\n"
-    text += "-" * 40 + "\n"
-    for uid in blacklist:
-        text += f"{uid}\n"
+    text = f"ЕКСПОРТ {EVENT_NAME}\n{datetime.now()}\n\n"
+    for uid, u in users.items():
+        text += f"{u['name']} | {uid} | @{u.get('username')}\n"
 
     os.makedirs("data", exist_ok=True)
-    filename = f"data/export_{datetime.now().timestamp()}.txt"
-
+    filename = "data/export.txt"
     with open(filename, "w", encoding="utf-8") as f:
         f.write(text)
 
     await message.answer_document(FSInputFile(filename))
     os.remove(filename)
-
-
