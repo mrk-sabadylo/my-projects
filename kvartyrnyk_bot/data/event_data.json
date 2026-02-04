@@ -1,0 +1,21 @@
+{
+  "max_slots": 30,
+  "registered_users": {
+    "975267542": {
+      "name": "в в",
+      "username": "mrk_sbd",
+      "registered_at": "2026-02-04T03:28:22.717438"
+    }
+  },
+  "blacklist": [
+    111,
+    222
+  ],
+  "price": 800,
+  "event_info": {
+    "place": "хуй",
+    "time": "16.20",
+    "price": "800"
+  },
+  "unregister_allowed": true
+}
