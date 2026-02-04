@@ -10,6 +10,8 @@ class Database:
         self.db_path = DATABASE_PATH
         self._ensure_database()
 
+
+
     def _ensure_database(self):
         dir_path = os.path.dirname(self.db_path)
         if dir_path:
@@ -23,7 +25,8 @@ class Database:
                 "event_info": {"place": "", "time": "", "price": ""},
                 "unregister_allowed": True,
                 "registered_users": {},
-                "blacklist": []
+                "blacklist": [],
+                "known_users": {}
             }
             self._save_data(initial_data)
             return
@@ -83,16 +86,13 @@ class Database:
         self._save_data(data)
 
     # ===== REGISTRATION =====
-    def is_user_registered(self, user_id: int) -> bool:
-        return str(user_id) in self._load_data().get("registered_users", {})
-
     def register_user(self, user_id: int, name: str, username: Optional[str] = None) -> bool:
         data = self._load_data()
 
         if str(user_id) in data["registered_users"]:
             return False
 
-        if user_id in data["blacklist"]:
+        if self.is_in_blacklist(user_id, username):
             return False
 
         if len(data["registered_users"]) >= data["max_slots"]:
@@ -106,6 +106,7 @@ class Database:
         }
 
         self._save_data(data)
+        self.save_known_user(user_id, username)
         return True
 
     def unregister_user(self, user_id: int):
@@ -128,11 +129,40 @@ class Database:
 
     # ===== BLACKLIST =====
 
-    def is_in_blacklist(self, user_id):
-        return user_id in self._load_data()["blacklist"]
+    def is_in_blacklist(self, user_id: int, username: str | None = None) -> bool:
+        data = self._load_data()
+        bl = data.get("blacklist", [])
+
+        if user_id in bl:
+            return True
+
+        if username and username.lower() in [str(x).lower() for x in bl]:
+            return True
+
+        if "known_users" not in data:
+            data["known_users"] = {}
+            changed = True
+
+        return False
 
     def get_blacklist(self):
         return self._load_data().get("blacklist", [])
+
+
+    # ===== KNOWN USERS (username → id) =====
+
+    def save_known_user(self, user_id: int, username: Optional[str]):
+        if not username:
+            return
+        data = self._load_data()
+        data.setdefault("known_users", {})
+        data["known_users"][username.lower()] = user_id
+        self._save_data(data)
+
+    def get_user_id_by_username(self, username: str):
+        data = self._load_data()
+        return data.get("known_users", {}).get(username.lower())
+
 
     # ===== UNREGISTER TOGGLE =====
     def is_unregister_allowed(self) -> bool:
@@ -152,16 +182,20 @@ class Database:
         data["registered_users"] = {}
         self._save_data(data)
 
-    def add_to_blacklist(self, user_id: int):
+    def add_to_blacklist(self, value):
         data = self._load_data()
-        if user_id not in data["blacklist"]:
-            data["blacklist"].append(user_id)
+        if "blacklist" not in data:
+            data["blacklist"] = []
+
+        if value not in data["blacklist"]:
+            data["blacklist"].append(value)
             self._save_data(data)
 
-    def remove_from_blacklist(self, user_id: int):
+    def remove_from_blacklist(self, value):
         data = self._load_data()
-        if user_id in data["blacklist"]:
-            data["blacklist"].remove(user_id)
+        if value in data.get("blacklist", []):
+            data["blacklist"].remove(value)
             self._save_data(data)
+
 
 db = Database()
