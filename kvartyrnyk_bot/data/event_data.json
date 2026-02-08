@@ -1,15 +1,36 @@
 {
+  "max_friends_per_user": 2,
   "max_slots": 30,
-  "registered_users": {},
+  "registered_users": {
+    "975267542": {
+      "name": "k k",
+      "username": "mrk_sbd",
+      "registered_at": "2026-02-08T17:52:27.331325",
+      "qr_token": "1eccc06a-8c5e-4a85-be41-e8c4c963d237",
+      "friends": [
+        {
+          "name": "A a",
+          "username": "hui"
+        },
+        {
+          "name": "B b",
+          "username": "hui2"
+        }
+      ]
+    }
+  },
   "blacklist": [
     111,
     222
   ],
   "price": 800,
   "event_info": {
-    "place": "sds",
-    "time": "13",
-    "price": "700"
+    "place": "fff",
+    "time": "15",
+    "price": "1000"
   },
-  "unregister_allowed": true
+  "unregister_allowed": true,
+  "known_users": {
+    "mrk_sbd": 975267542
+  }
 }
