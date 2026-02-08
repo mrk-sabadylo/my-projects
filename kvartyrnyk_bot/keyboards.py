@@ -4,9 +4,9 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 user_keyboard = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="📝 Реєстрація"), KeyboardButton(text="📋 Мій статус")],
-        [KeyboardButton(text="❌ Скасувати бронь")],
-        [KeyboardButton(text="ℹ️ Інформація про подію")],
-        [KeyboardButton(text="⬅️ Назад")]
+        [KeyboardButton(text="❌ Скасувати бронь"),KeyboardButton(text="ℹ️ Інформація про подію")],
+[KeyboardButton(text="🎫 Мій QR")]
+
     ],
     resize_keyboard=True
 )
@@ -18,6 +18,16 @@ confirm_keyboard = ReplyKeyboardMarkup(
     resize_keyboard=True,
     one_time_keyboard=True
 )
+
+
+
+yes_no_keyboard = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="Так"), KeyboardButton(text="Ні")]
+    ],
+    resize_keyboard=True
+)
+
 
 # ===== ADMIN =====
 admin_keyboard = ReplyKeyboardMarkup(

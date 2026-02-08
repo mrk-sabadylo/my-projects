@@ -64,9 +64,6 @@ if __name__ == "__main__":
 
 from aiogram.types import Message
 
-@dp.message()
-async def unknown(message: Message):
-    await message.answer("Команду не розпізнано.")
 
 
 

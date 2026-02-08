@@ -1,5 +1,6 @@
 import json
 import os
+import uuid
 from typing import Optional
 from config import DATABASE_PATH
 
@@ -85,6 +86,10 @@ class Database:
         data["event_info"] = {"place": "", "time": "", "price": ""}
         self._save_data(data)
 
+    # ===== CHECK REGISTRATION =====
+    def is_user_registered(self, user_id: int) -> bool:
+        return str(user_id) in self._load_data().get("registered_users", {})
+
     # ===== REGISTRATION =====
     def register_user(self, user_id: int, name: str, username: Optional[str] = None) -> bool:
         data = self._load_data()
@@ -99,10 +104,13 @@ class Database:
             return False
 
         from datetime import datetime
+        qr_token = str(uuid.uuid4())
+
         data["registered_users"][str(user_id)] = {
             "name": name,
             "username": username,
-            "registered_at": datetime.now().isoformat()
+            "registered_at": datetime.now().isoformat(),
+            "qr_token": qr_token
         }
 
         self._save_data(data)
@@ -112,6 +120,30 @@ class Database:
     def unregister_user(self, user_id: int):
         data = self._load_data()
         data["registered_users"].pop(str(user_id), None)
+        self._save_data(data)
+
+    # ===== FRIENDS SYSTEM =====
+
+    def get_max_friends(self):
+        return self._load_data().get("max_friends_per_user", 0)
+
+    def set_max_friends(self, count: int):
+        data = self._load_data()
+        data["max_friends_per_user"] = count
+        self._save_data(data)
+
+    def add_friend_to_user(self, user_id: int, name: str, username: str | None):
+        data = self._load_data()
+        user = data["registered_users"].get(str(user_id))
+        if not user:
+            return
+
+        user.setdefault("friends", [])
+        user["friends"].append({
+            "name": name,
+            "username": username
+        })
+
         self._save_data(data)
 
     # ===== SLOTS =====
@@ -141,7 +173,6 @@ class Database:
 
         if "known_users" not in data:
             data["known_users"] = {}
-            changed = True
 
         return False
 
